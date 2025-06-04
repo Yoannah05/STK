@@ -137,10 +137,41 @@ async function getActivitySituation(req, res) {
       remaining_balance: result.rows.reduce((sum, row) => sum + parseFloat(row.remaining_balance || 0), 0)
     };
 
+    // Query to get people who have paid in full
+    const fullyPaidQuery = `
+      SELECT DISTINCT
+        pmt.person_id,
+        pmt.first_name,
+        pmt.last_name,
+        pmt.person_type,
+        sp.description as sp_description,
+        sp.region as sp_region,
+        COUNT(pmt.id_activity) as activities_count,
+        SUM(pmt.amount_to_pay) as total_amount_to_pay,
+        COALESCE(SUM(paid_amounts.amount_paid), 0) as total_amount_paid
+      FROM mv_payment_amounts pmt
+      JOIN Persons p ON pmt.person_id = p.id
+      LEFT JOIN SP sp ON p.id_sp = sp.id
+      LEFT JOIN (
+        SELECT 
+          ap.id_presenceactivity,
+          SUM(ap.amount) as amount_paid
+        FROM ActivityPayment ap
+        GROUP BY ap.id_presenceactivity
+      ) paid_amounts ON pmt.presence_id = paid_amounts.id_presenceactivity
+      ${sp_id ? 'WHERE pmt.person_id IN (SELECT id FROM Persons WHERE id_sp = $1)' : ''}
+      GROUP BY pmt.person_id, pmt.first_name, pmt.last_name, pmt.person_type, sp.description, sp.region
+      HAVING SUM(pmt.amount_to_pay) <= COALESCE(SUM(paid_amounts.amount_paid), 0)
+      ORDER BY pmt.person_type, pmt.last_name, pmt.first_name
+    `;
+
+    const fullyPaidResult = await pool.query(fullyPaidQuery, params);
+
     res.status(200).json({
       sp_filter: sp_id || 'all_sp',
       overall_statistics: overallStats,
-      activities_detail: result.rows
+      activities_detail: result.rows,
+      fully_paid_persons: fullyPaidResult.rows
     });
   } catch (error) {
     console.error("Error fetching activity situation:", error.message);

@@ -98,7 +98,7 @@ const ActivitySituation = () => {
       </div>
 
       <div className="filter-container">
-        <label htmlFor="sp-select">Filtrer par Structure de Personnel (SP) : </label>
+        <label htmlFor="sp-select">Filtrer par SP : </label>
         <select
           id="sp-select"
           value={selectedSP}
@@ -216,6 +216,69 @@ const ActivitySituation = () => {
               )}
             </div>
           </div>
+
+          {/* Fully Paid Persons Section */}
+          <div className="fully-paid-section">
+            <h3>Personnes Ayant Payé en Totalité {selectedSP ? `- ${getSelectedSPDescription()}` : ''}</h3>
+            
+            <div className="data-table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nom</th>
+                    <th>Prénom</th>
+                    <th>Type</th>
+                    <th>SP</th>
+                    <th>Région</th>
+                    <th>Nb Activités</th>
+                    <th>Montant Total</th>
+                    <th>Montant Payé</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {situationData.fully_paid_persons.map((person) => (
+                    <tr key={person.person_id}>
+                      <td>{person.person_id}</td>
+                      <td className="person-name">{person.last_name}</td>
+                      <td className="person-name">{person.first_name}</td>
+                      <td className="text-center">
+                        <span className={`person-type-badge ${person.person_type}`}>
+                          {person.person_type === 'member' ? 'Membre' : 'Non-Membre'}
+                        </span>
+                      </td>
+                      <td>{person.sp_description || 'N/A'}</td>
+                      <td>{person.sp_region || 'N/A'}</td>
+                      <td className="text-center">
+                        <span className="activity-count-badge">{person.activities_count}</span>
+                      </td>
+                      <td className="currency-cell">{formatCurrency(person.total_amount_to_pay)}</td>
+                      <td className="currency-cell revenue">{formatCurrency(person.total_amount_paid)}</td>
+                      <td className="text-center">
+                        <span className="status-badge paid">
+                          ✓ Payé
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {situationData.fully_paid_persons.length === 0 && (
+                <div className="empty-state">
+                  {selectedSP ? 
+                    `Aucune personne n'a payé en totalité pour la SP sélectionnée` : 
+                    `Aucune personne n'a payé en totalité`
+                  }
+                </div>
+              )}
+            </div>
+
+            <div className="summary-info">
+              <p><strong>{situationData.fully_paid_persons.length}</strong> personne(s) ont payé en totalité toutes leurs activités</p>
+            </div>
+          </div>
         </>
       )}
 
@@ -307,7 +370,8 @@ const ActivitySituation = () => {
           margin-top: 5px;
         }
 
-        .activities-section {
+        .activities-section,
+        .fully-paid-section {
           margin-top: 30px;
         }
 
@@ -316,6 +380,7 @@ const ActivitySituation = () => {
           background: white;
           border-radius: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          margin-bottom: 20px;
         }
 
         .data-table {
@@ -358,14 +423,18 @@ const ActivitySituation = () => {
           color: #dc3545;
         }
 
-        .activity-name {
+        .activity-name,
+        .person-name {
           font-weight: 500;
           max-width: 200px;
         }
 
         .participant-badge,
         .member-badge,
-        .guest-badge {
+        .guest-badge,
+        .person-type-badge,
+        .activity-count-badge,
+        .status-badge {
           display: inline-block;
           padding: 4px 8px;
           border-radius: 12px;
@@ -378,14 +447,26 @@ const ActivitySituation = () => {
           color: #1976d2;
         }
 
-        .member-badge {
+        .member-badge,
+        .person-type-badge.member {
           background: #e8f5e8;
           color: #2e7d32;
         }
 
-        .guest-badge {
+        .guest-badge,
+        .person-type-badge.guest {
           background: #fff3e0;
           color: #f57c00;
+        }
+
+        .activity-count-badge {
+          background: #f3e5f5;
+          color: #7b1fa2;
+        }
+
+        .status-badge.paid {
+          background: #e8f5e8;
+          color: #2e7d32;
         }
 
         .loading-text {
@@ -407,6 +488,20 @@ const ActivitySituation = () => {
           padding: 40px;
           color: #666;
           font-style: italic;
+        }
+
+        .summary-info {
+          background: #e8f5e8;
+          padding: 15px;
+          border-radius: 5px;
+          border-left: 4px solid #28a745;
+          margin-top: 15px;
+        }
+
+        .summary-info p {
+          margin: 0;
+          color: #2e7d32;
+          font-weight: 500;
         }
       `}</style>
     </div>
