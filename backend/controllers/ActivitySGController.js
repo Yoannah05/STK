@@ -115,12 +115,14 @@ async function getActivitySituation(req, res) {
         GROUP BY id_activity, activity_description, activity_date
       ) pmt
       LEFT JOIN (
-        SELECT 
-          id_activity,
-          SUM(amount) as total_paid
-        FROM ActivityPayment
-        GROUP BY id_activity
-      ) paid ON pmt.id_activity = paid.id_activity
+  SELECT 
+    ap.id_activity,
+    SUM(ap.amount) as total_paid
+  FROM ActivityPayment ap
+  JOIN mv_payment_amounts pmt ON ap.id_presenceactivity = pmt.presence_id
+  ${sp_id ? 'WHERE pmt.person_id IN (SELECT id FROM Persons WHERE id_sp = $1)' : ''}
+  GROUP BY ap.id_activity
+) paid ON pmt.id_activity = paid.id_activity
       ORDER BY pmt.activity_date DESC
     `;
 
