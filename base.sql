@@ -50,7 +50,7 @@ CREATE TABLE ActivityPresence (
 CREATE TABLE ActivityPayment (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
-    id_activity INT NOT NULL,
+    id_activity INT,
     amount NUMERIC(10,2) NOT NULL,
     id_presenceactivity INT NOT NULL REFERENCES ActivityPresence(id) ON DELETE CASCADE,
     FOREIGN KEY (id_activity) REFERENCES Activities(id) ON DELETE CASCADE
