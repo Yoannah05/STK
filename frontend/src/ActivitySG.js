@@ -2,30 +2,28 @@ import React, { useEffect, useState } from "react";
 
 const ActivitySituation = () => {
   const [situationData, setSituationData] = useState(null);
-  const [region, setRegion] = useState("");
-  const [regions, setRegions] = useState([]);
+  const [selectedSP, setSelectedSP] = useState("");
+  const [spList, setSPList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch available regions on mount
+  // Fetch available SP on mount
   useEffect(() => {
-  fetch("http://localhost:5000/api/sp")
-    .then(response => response.json())
-    .then(data => {
-      const uniqueRegions = [...new Set(data.map(sp => sp.region))];
-      setRegions(uniqueRegions);
-    })
-    .catch(error => {
-      console.error("Erreur lors de la récupération des régions :", error);
-    });
-}, []);
-
+    fetch("http://localhost:5000/api/sp")
+      .then(response => response.json())
+      .then(data => {
+        setSPList(data.sp_list || data); // Adapter selon la structure de réponse de votre API
+      })
+      .catch(error => {
+        console.error("Erreur lors de la récupération des SP :", error);
+      });
+  }, []);
 
   // Fetch activity situation data
   useEffect(() => {
-    const url = region
-      ? `http://localhost:5000/api/activities/situation?region=${encodeURIComponent(region)}`
+    const url = selectedSP
+      ? `http://localhost:5000/api/activities/situation?sp_id=${encodeURIComponent(selectedSP)}`
       : "http://localhost:5000/api/activities/situation";
 
     setLoading(true);
@@ -45,7 +43,7 @@ const ActivitySituation = () => {
         setError(error.message);
         setLoading(false);
       });
-  }, [region]);
+  }, [selectedSP]);
 
   // Refresh payment views
   const handleRefreshViews = async () => {
@@ -68,15 +66,22 @@ const ActivitySituation = () => {
     }
   };
 
- const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount || 0);
-};
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount || 0);
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-FR');
+  };
+
+  // Get selected SP description for display
+  const getSelectedSPDescription = () => {
+    if (!selectedSP) return "Toutes les SP";
+    const sp = spList.find(sp => sp.id === parseInt(selectedSP));
+    return sp ? `${sp.description} (${sp.region})` : selectedSP;
   };
 
   return (
@@ -93,15 +98,17 @@ const ActivitySituation = () => {
       </div>
 
       <div className="filter-container">
-        <label htmlFor="region-select">Filtrer par région : </label>
+        <label htmlFor="sp-select">Filtrer par Structure de Personnel (SP) : </label>
         <select
-          id="region-select"
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
+          id="sp-select"
+          value={selectedSP}
+          onChange={(e) => setSelectedSP(e.target.value)}
         >
-          <option value="">Toutes les régions</option>
-          {regions.map((r) => (
-            <option key={r} value={r}>{r}</option>
+          <option value="">Toutes les SP</option>
+          {spList.map((sp) => (
+            <option key={sp.id} value={sp.id}>
+              {sp.description} - {sp.region}
+            </option>
           ))}
         </select>
       </div>
@@ -113,7 +120,7 @@ const ActivitySituation = () => {
         <>
           {/* Overall Statistics Section */}
           <div className="statistics-section">
-            <h3>Statistiques Globales - {situationData.region_filter === 'all_regions' ? 'Toutes les régions' : situationData.region_filter}</h3>
+            <h3>Statistiques Globales - {getSelectedSPDescription()}</h3>
             
             <div className="stats-grid">
               <div className="stat-card">
@@ -141,12 +148,21 @@ const ActivitySituation = () => {
                 <div className="stat-label">Revenus Totaux</div>
               </div>
 
+              <div className="stat-card revenue">
+                <div className="stat-value">{formatCurrency(situationData.overall_statistics.total_paid)}</div>
+                <div className="stat-label">Total Payé</div>
+              </div>
+
+              <div className="stat-card discount">
+                <div className="stat-value">{formatCurrency(situationData.overall_statistics.remaining_balance)}</div>
+                <div className="stat-label">Reste</div>
+              </div>
             </div>
           </div>
 
           {/* Activities Detail Section */}
           <div className="activities-section">
-            <h3>Détail des Activités par Région</h3>
+            <h3>Détail des Activités {selectedSP ? `pour ${getSelectedSPDescription()}` : 'pour toutes les SP'}</h3>
             
             <div className="data-table-container">
               <table className="data-table">
@@ -160,9 +176,8 @@ const ActivitySituation = () => {
                     <th>Non-Membre</th>
                     <th>Prix de Base</th>
                     <th>Revenus Totaux</th>
-                    <th>Total déja Payer</th>
-                    <th>Reste</th>
-                    <th>Remises Accordées</th>
+                    <th>Total Déjà Payé</th>
+                    <th>Solde Restant</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -183,8 +198,9 @@ const ActivitySituation = () => {
                       <td className="currency-cell">{formatCurrency(activity.avg_base_price)}</td>
                       <td className="currency-cell revenue">{formatCurrency(activity.total_revenue)}</td>
                       <td className="currency-cell revenue">{formatCurrency(activity.total_paid)}</td>
-                      <td className="currency-cell revenue">{formatCurrency(activity.remaining_balance)}</td>
-                      <td className="currency-cell discount">{formatCurrency(activity.total_discount_given)}</td>
+                      <td className={`currency-cell ${activity.remaining_balance > 0 ? 'discount' : 'revenue'}`}>
+                        {formatCurrency(activity.remaining_balance)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -192,7 +208,10 @@ const ActivitySituation = () => {
               
               {situationData.activities_detail.length === 0 && (
                 <div className="empty-state">
-                  Aucune activité trouvée pour cette région
+                  {selectedSP ? 
+                    `Aucune activité trouvée pour la SP sélectionnée` : 
+                    `Aucune activité trouvée`
+                  }
                 </div>
               )}
             </div>
@@ -245,6 +264,7 @@ const ActivitySituation = () => {
           padding: 8px;
           border: 1px solid #ddd;
           border-radius: 4px;
+          min-width: 300px;
         }
 
         .statistics-section {
@@ -335,7 +355,7 @@ const ActivitySituation = () => {
         }
 
         .currency-cell.discount {
-          color: #ffc107;
+          color: #dc3545;
         }
 
         .activity-name {
@@ -345,8 +365,7 @@ const ActivitySituation = () => {
 
         .participant-badge,
         .member-badge,
-        .guest-badge,
-        .discount-badge {
+        .guest-badge {
           display: inline-block;
           padding: 4px 8px;
           border-radius: 12px;
@@ -367,11 +386,6 @@ const ActivitySituation = () => {
         .guest-badge {
           background: #fff3e0;
           color: #f57c00;
-        }
-
-        .discount-badge {
-          background: #fff8e1;
-          color: #f9a825;
         }
 
         .loading-text {

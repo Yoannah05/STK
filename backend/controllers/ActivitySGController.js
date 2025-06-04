@@ -1,9 +1,9 @@
 const pool = require("../db");  // Database pool
 
-// Function to get payment amounts for all activities with optional region filter
+// Function to get payment amounts for all activities with optional SP filter
 async function getPaymentAmounts(req, res) {
   try {
-    const { region, activity_id, member_id, person_id } = req.query;
+    const { sp_id, activity_id, member_id, person_id } = req.query;
     
     let query = `
       SELECT 
@@ -29,10 +29,10 @@ async function getPaymentAmounts(req, res) {
     let params = [];
     let paramIndex = 1;
 
-    // Add region filter if provided
-    if (region) {
-      conditions.push(`id_activity IN (SELECT id FROM Activities WHERE region = $${paramIndex})`);
-      params.push(region);
+    // Add SP filter if provided - filter by persons belonging to a specific SP
+    if (sp_id) {
+      conditions.push(`person_id IN (SELECT id FROM Persons WHERE id_sp = $${paramIndex})`);
+      params.push(parseInt(sp_id));
       paramIndex++;
     }
 
@@ -78,14 +78,14 @@ async function getPaymentAmounts(req, res) {
 
 async function getActivitySituation(req, res) {
   try {
-    const { region } = req.query;
+    const { sp_id } = req.query;
     
-    let regionFilter = '';
+    let spFilter = '';
     let params = [];
     
-    if (region) {
-      regionFilter = `WHERE pmt.id_activity IN (SELECT id FROM Activities WHERE region = $1)`;
-      params.push(region);
+    if (sp_id) {
+      spFilter = `WHERE pmt.person_id IN (SELECT id FROM Persons WHERE id_sp = $1)`;
+      params.push(parseInt(sp_id));
     }
 
     const query = `
@@ -111,6 +111,7 @@ async function getActivitySituation(req, res) {
           AVG(base_price) as avg_base_price,
           SUM(amount_to_pay) as total_revenue
         FROM mv_payment_amounts
+        ${sp_id ? 'WHERE person_id IN (SELECT id FROM Persons WHERE id_sp = $1)' : ''}
         GROUP BY id_activity, activity_description, activity_date
       ) pmt
       LEFT JOIN (
@@ -120,7 +121,6 @@ async function getActivitySituation(req, res) {
         FROM ActivityPayment
         GROUP BY id_activity
       ) paid ON pmt.id_activity = paid.id_activity
-      ${regionFilter}
       ORDER BY pmt.activity_date DESC
     `;
 
@@ -138,7 +138,7 @@ async function getActivitySituation(req, res) {
     };
 
     res.status(200).json({
-      region_filter: region || 'all_regions',
+      sp_filter: sp_id || 'all_sp',
       overall_statistics: overallStats,
       activities_detail: result.rows
     });
@@ -148,7 +148,7 @@ async function getActivitySituation(req, res) {
   }
 }
 
-// Fonction bonus: Obtenir les détails des paiements par activité
+// Function to get activity payment details
 async function getActivityPaymentDetails(req, res) {
   try {
     const { activity_id } = req.params;
@@ -172,7 +172,7 @@ async function getActivityPaymentDetails(req, res) {
     
     const result = await pool.query(query, [activity_id]);
     
-    // Calculer les totaux pour cette activité
+    // Calculate totals for this activity
     const totalsQuery = `
       SELECT 
         SUM(pmt.amount_to_pay) as total_expected,
@@ -196,18 +196,18 @@ async function getActivityPaymentDetails(req, res) {
   }
 }
 
-
 async function getPersonPaymentSummary(req, res) {
   try {
-    const { region, person_type } = req.query;
+    const { sp_id, person_type } = req.query;
     
     let conditions = [];
     let params = [];
     let paramIndex = 1;
 
-    if (region) {
-      conditions.push(`id_activity IN (SELECT id FROM Activities WHERE region = $${paramIndex})`);
-      params.push(region);
+    // Filter by SP if provided
+    if (sp_id) {
+      conditions.push(`person_id IN (SELECT id FROM Persons WHERE id_sp = $${paramIndex})`);
+      params.push(parseInt(sp_id));
       paramIndex++;
     }
 
@@ -238,7 +238,7 @@ async function getPersonPaymentSummary(req, res) {
     const result = await pool.query(query, params);
     
     res.status(200).json({
-      region_filter: region || 'all_regions',
+      sp_filter: sp_id || 'all_sp',
       person_type_filter: person_type || 'all_types',
       total_persons: result.rows.length,
       payment_summary: result.rows
@@ -268,5 +268,5 @@ module.exports = {
   getActivitySituation, 
   getPersonPaymentSummary, 
   refreshPaymentViews,
-  getActivityPaymentDetails 
-};// Function to get payment summary by person
+  getActivityPaymentDetails
+};
